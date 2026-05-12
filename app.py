@@ -27,27 +27,27 @@ PROJECTS = {
     "VIRTUAL_CAFE": {
         "label": "バーチャルあっとほぉーむカフェ",
         "subtitle": "バーチャル配信",
-        "gid": "",
+        "gid": "1173568321",
     },
     "NICOLIVE": {
         "label": "ニコ生",
         "subtitle": "ニコニコ生放送",
-        "gid": "",
+        "gid": "1834964074",
     },
     "AT_LIVE": {
         "label": "あっとライブ",
         "subtitle": "ライブイベント",
-        "gid": "",
+        "gid": "1558766351",
     },
     "WEDDING": {
         "label": "ウェディング",
         "subtitle": "ウェディング事業",
-        "gid": "",
+        "gid": "1014571293",
     },
     "PHOTOSHOT": {
         "label": "撮影会",
         "subtitle": "撮影会イベント",
-        "gid": "",
+        "gid": "970613346",
     },
 }
 
