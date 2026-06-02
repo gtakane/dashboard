@@ -498,7 +498,10 @@ def render_header(key):
     st.markdown(html(f"""<div class="dash-header">
         <div class="header-accent"></div>
         {logo_html}
-        <div><h1>{p["label"]}</h1><p>{p["subtitle"]} — 2026年度 予実管理</p></div>
+        <div style="flex:1;">
+            <h1 style="color:#ffffff !important;font-size:1.4rem;font-weight:700;margin:0;line-height:1.2;">{p["label"]}</h1>
+            <p style="color:#e5e7eb !important;font-size:.85rem;font-weight:400;margin:.25rem 0 0;line-height:1.3;">{p["subtitle"]} — 2026年度 予実管理</p>
+        </div>
     </div>"""), unsafe_allow_html=True)
 
 def page_month_selector(default_index=0, key_suffix=""):
