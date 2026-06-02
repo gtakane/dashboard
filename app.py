@@ -69,31 +69,30 @@ def inject_css():
 
     /* ── Header ── */
     .dash-header{{background:linear-gradient(135deg,{DARK},#2d2d4e);
-        padding:1.1rem 1.8rem 1rem;border-radius:0 0 1rem 1rem;
-        margin:-1rem -1rem 1.2rem -1rem;display:flex;align-items:center;gap:1rem;}}
-    .header-accent{{width:3px;height:42px;background:{PINK};border-radius:2px;flex-shrink:0;}}
-    .dash-header h1{{color:{WHITE};font-size:1.25rem;font-weight:600;margin:0;letter-spacing:.02em;}}
-    .dash-header p{{color:rgba(255,255,255,.85);font-size:.78rem;font-weight:400;margin:.1rem 0 0;letter-spacing:.03em;}}
+        padding:1.3rem 1.8rem 1.2rem;border-radius:0 0 1rem 1rem;
+        margin:-1rem -1rem 1.2rem -1rem;display:flex;align-items:center;gap:1.2rem;}}
+    .header-accent{{width:4px;height:54px;background:{PINK};border-radius:2px;flex-shrink:0;}}
+    .dash-header h1{{color:{WHITE};font-size:1.4rem;font-weight:700;margin:0;letter-spacing:.02em;}}
+    .dash-header p{{color:#e5e7eb;font-size:.85rem;font-weight:400;margin:.2rem 0 0;letter-spacing:.03em;}}
 
     /* ── Header logo wrapper ── */
-    .header-logo-wrap{{background:{WHITE};border-radius:8px;
-        padding:6px 10px;display:flex;align-items:center;justify-content:center;
-        box-shadow:0 2px 6px rgba(0,0,0,.18);flex-shrink:0;
-        height:52px;min-width:60px;max-width:200px;}}
-    .header-logo{{height:38px;max-width:180px;object-fit:contain;display:block;}}
+    .header-logo-wrap{{background:{WHITE};border-radius:10px;
+        padding:8px 14px;display:flex;align-items:center;justify-content:center;
+        box-shadow:0 2px 8px rgba(0,0,0,.25);flex-shrink:0;
+        height:62px;min-width:80px;max-width:240px;}}
+    .header-logo{{height:46px;max-width:212px;object-fit:contain;display:block;}}
 
     /* ── Project card logo (main dashboard) ── */
-    .proj-card-header{{display:flex;align-items:center;gap:.8rem;
-        margin:0 0 .8rem;padding-bottom:.3rem;border-bottom:2px solid {PINK};
-        display:inline-flex;}}
+    .proj-card-header{{display:inline-flex;align-items:center;gap:.8rem;
+        margin:0 0 .8rem;padding-bottom:.3rem;border-bottom:2px solid {PINK};}}
     .proj-logo-wrap{{background:{LGRAY};border-radius:6px;
-        padding:4px 8px;display:flex;align-items:center;justify-content:center;
-        height:40px;min-width:48px;max-width:140px;}}
-    .proj-logo{{height:30px;max-width:124px;object-fit:contain;display:block;}}
-    .proj-badge{{width:36px;height:36px;border-radius:50%;background:{PINK};
+        padding:5px 10px;display:flex;align-items:center;justify-content:center;
+        height:46px;min-width:60px;max-width:160px;border:1px solid rgba(0,0,0,.05);}}
+    .proj-logo{{height:36px;max-width:140px;object-fit:contain;display:block;}}
+    .proj-badge{{width:42px;height:42px;border-radius:50%;background:{PINK};
         color:{WHITE};display:flex;align-items:center;justify-content:center;
-        font-weight:700;font-size:1rem;flex-shrink:0;}}
-    .proj-card-title{{font-size:.95rem;font-weight:600;color:{CHARCOAL};margin:0;}}
+        font-weight:700;font-size:1.1rem;flex-shrink:0;}}
+    .proj-card-title{{font-size:1rem;font-weight:600;color:{CHARCOAL};margin:0;}}
 
     /* ── Month selector bar ── */
     .month-bar{{background:{WHITE};border-radius:.5rem;padding:.4rem .9rem;
@@ -177,7 +176,9 @@ def img_b64(path):
     """画像ファイルを base64 データ URI に変換。存在しなければ None。"""
     if not path:
         return None
-    p = Path(path)
+    # app.py と同じディレクトリを起点とする絶対パスで解決
+    base_dir = Path(__file__).parent
+    p = (base_dir / path) if not Path(path).is_absolute() else Path(path)
     if not p.exists():
         return None
     with open(p, "rb") as f:
@@ -688,23 +689,23 @@ def render_main_page(ssid):
     total_margin = (total_profit/total_sales*100) if total_sales else 0
     st.markdown(html(f"""<div class="proj-summary-card" style="background:linear-gradient(135deg,{DARK},#2d2d4e);margin-top:.5rem;">
         <div class="proj-card-header" style="border-color:{PINK};">
-            <div class="proj-card-title" style="color:{WHITE};font-size:1rem;">全プロジェクト合計（{period_label}）</div>
+            <div class="proj-card-title" style="color:{WHITE};font-size:1.05rem;">全プロジェクト合計（{period_label}）</div>
         </div>
         <div class="proj-row">
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">売上合計</div>
+                <div class="proj-metric-label" style="color:#e5e7eb;">売上合計</div>
                 <div class="proj-metric-value" style="color:{WHITE};">{fmt(total_sales)}</div>
             </div>
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">原価合計</div>
+                <div class="proj-metric-label" style="color:#e5e7eb;">原価合計</div>
                 <div class="proj-metric-value" style="color:{COST_COLOR};">{fmt(total_cost)}</div>
             </div>
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">営業利益合計</div>
+                <div class="proj-metric-label" style="color:#e5e7eb;">営業利益合計</div>
                 <div class="proj-metric-value" style="color:{pr_color};">{fmt(total_profit)}</div>
             </div>
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">利益率</div>
+                <div class="proj-metric-label" style="color:#e5e7eb;">利益率</div>
                 <div class="proj-metric-value" style="color:{pr_color};">{total_margin:.1f}%</div>
             </div>
             <div></div>
@@ -1019,6 +1020,27 @@ def main():
 
         # 実際に使う URL は、入力値があればそれ、なければデフォルト
         sheet_url = st.session_state.get("sheet_url_override", "") or DEFAULT_SHEET_URL
+
+        # ── ロゴファイル状態の確認 ──
+        with st.expander("ロゴファイル状態"):
+            base_dir = Path(__file__).parent
+            for k, p in PROJECTS.items():
+                if not p.get("logo"):
+                    continue
+                logo_path = base_dir / p["logo"]
+                exists = logo_path.exists()
+                icon = "✓" if exists else "✗"
+                color = "#10b981" if exists else "#ef4444"
+                st.markdown(
+                    f'<div style="font-size:.72rem;color:{color};margin:.2rem 0;">'
+                    f'{icon} {p["label"]}: <code style="font-size:.68rem;">{p["logo"]}</code></div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                f'<p style="font-size:.65rem;color:#aaa;margin-top:.5rem;line-height:1.4;">'
+                f'実行ディレクトリ: <code style="font-size:.6rem;">{base_dir}</code></p>',
+                unsafe_allow_html=True,
+            )
 
     if auto_sec > 0:
         st.markdown(f'<meta http-equiv="refresh" content="{auto_sec}">',
