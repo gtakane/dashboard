@@ -1,4 +1,3 @@
-
 """
 2026年度 EC部 予実管理ダッシュボード — マルチプロジェクト対応
 """
@@ -7,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import io, re, requests, datetime, base64
 from pathlib import Path
- 
+
 # ═══════════════════════════════════════════════════
 # 0. CONFIG
 # ═══════════════════════════════════════════════════
@@ -20,7 +19,10 @@ PROJECTS = {
     "WEDDING":       {"label": "ウェディング",          "subtitle": "ウェディング事業",        "gid": "1014571293","logo": None},
     "PHOTOSHOT":     {"label": "撮影会",               "subtitle": "撮影会イベント",          "gid": "970613346", "logo": None},
 }
- 
+
+# ── デフォルトのスプレッドシート URL（毎回入力不要にするため） ──
+DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1euOCbnz-bC-xqoMe_hePVsDLVVdO4sNaK80woswd1sM/edit"
+
 # ── Color palette (refreshed for better visibility) ──
 PINK       = "#f96cb4"   # Brand accent
 PINK_L     = "#fdb8d8"   # Soft pink
@@ -31,28 +33,28 @@ AMBER      = "#fbbf24"   # Gold
 ORANGE     = "#fb923c"   # Peach — cost
 ROSE       = "#fb7185"   # Rose
 SAGE       = "#a3b18a"   # Sage
- 
+
 PROFIT_POS = "#10b981"   # Emerald (profit)
 PROFIT_NEG = "#ef4444"   # Red (loss)
 COST_COLOR = "#fb923c"   # Orange (cost)
- 
+
 WHITE      = "#FFFFFF"
 LGRAY      = "#F8F9FA"
 MGRAY      = "#CBD5E1"   # Slate-200, more visible than DEE2E6
 CHARCOAL   = "#1f2937"
 DARK       = "#1a1a2e"
- 
+
 # Palette for multi-category donut / stacked charts
 PALETTE = [PINK, PURPLE, BLUE, TEAL, AMBER, ORANGE, ROSE, SAGE, "#94a3b8"]
- 
+
 FONT   = "'Noto Sans JP','Helvetica Neue',Arial,sans-serif"
 MONTHS = ["4月","5月","6月","7月","8月","9月","10月","11月","12月","1月","2月","3月"]
- 
+
 def fiscal_month_index():
     m = datetime.date.today().month
     return m - 4 if m >= 4 else m + 8
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 1. CSS
 # ═══════════════════════════════════════════════════
@@ -64,7 +66,7 @@ def inject_css():
     .stCaption,.stButton,[data-testid="stSidebar"]{{font-family:{FONT};color:{CHARCOAL};}}
     [data-testid="stIconMaterial"],.material-symbols-rounded,[class*="Icon"]{{font-family:'Material Symbols Rounded'!important;}}
     .stApp{{background:{LGRAY};}}
- 
+
     /* ── Header ── */
     .dash-header{{background:linear-gradient(135deg,{DARK},#2d2d4e);
         padding:1.1rem 1.8rem 1rem;border-radius:0 0 1rem 1rem;
@@ -72,14 +74,14 @@ def inject_css():
     .header-accent{{width:3px;height:42px;background:{PINK};border-radius:2px;flex-shrink:0;}}
     .dash-header h1{{color:{WHITE};font-size:1.25rem;font-weight:600;margin:0;letter-spacing:.02em;}}
     .dash-header p{{color:rgba(255,255,255,.85);font-size:.78rem;font-weight:400;margin:.1rem 0 0;letter-spacing:.03em;}}
- 
+
     /* ── Header logo wrapper ── */
     .header-logo-wrap{{background:{WHITE};border-radius:8px;
         padding:6px 10px;display:flex;align-items:center;justify-content:center;
         box-shadow:0 2px 6px rgba(0,0,0,.18);flex-shrink:0;
         height:52px;min-width:60px;max-width:200px;}}
     .header-logo{{height:38px;max-width:180px;object-fit:contain;display:block;}}
- 
+
     /* ── Project card logo (main dashboard) ── */
     .proj-card-header{{display:flex;align-items:center;gap:.8rem;
         margin:0 0 .8rem;padding-bottom:.3rem;border-bottom:2px solid {PINK};
@@ -92,14 +94,14 @@ def inject_css():
         color:{WHITE};display:flex;align-items:center;justify-content:center;
         font-weight:700;font-size:1rem;flex-shrink:0;}}
     .proj-card-title{{font-size:.95rem;font-weight:600;color:{CHARCOAL};margin:0;}}
- 
+
     /* ── Month selector bar ── */
     .month-bar{{background:{WHITE};border-radius:.5rem;padding:.4rem .9rem;
         box-shadow:0 1px 3px rgba(0,0,0,.05);border:1px solid rgba(0,0,0,.04);
         margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}}
     .month-bar-label{{font-size:.7rem;color:#999;letter-spacing:.05em;
         text-transform:uppercase;font-weight:500;}}
- 
+
     /* ── KPI Card ── */
     .kpi-card{{background:{WHITE};border-radius:.65rem;padding:1rem 1.15rem;
         box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04);
@@ -113,7 +115,7 @@ def inject_css():
     .kpi-cost{{color:{COST_COLOR};}}
     .kpi-profit-pos{{color:{PROFIT_POS};}}
     .kpi-profit-neg{{color:{PROFIT_NEG};}}
- 
+
     /* ── Section Card ── */
     .section-card{{background:{WHITE};border-radius:.65rem;padding:1.4rem 1.6rem;
         box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04);
@@ -121,14 +123,14 @@ def inject_css():
     .section-title{{font-size:.85rem;font-weight:600;color:{CHARCOAL};
         margin-bottom:.9rem;padding-bottom:.4rem;border-bottom:2px solid {PINK};
         display:inline-block;}}
- 
+
     /* ── Progress bar ── */
     .prog-track{{background:{LGRAY};border-radius:6px;height:7px;
         overflow:hidden;margin-top:.4rem;}}
     .prog-fill{{height:100%;border-radius:6px;
         background:linear-gradient(90deg,{PINK},{PINK_L});transition:width .6s;}}
     .prog-fill-over{{background:linear-gradient(90deg,{PROFIT_POS},#34d399);}}
- 
+
     /* ── Main page summary cards ── */
     .proj-summary-card{{background:{WHITE};border-radius:.65rem;
         padding:1.2rem 1.4rem;box-shadow:0 1px 4px rgba(0,0,0,.06);
@@ -141,15 +143,15 @@ def inject_css():
         text-transform:uppercase;font-weight:500;}}
     .proj-metric-value{{font-size:1.05rem;font-weight:700;color:{CHARCOAL};
         margin-top:.15rem;}}
- 
+
     /* ── Hide Streamlit chrome ── */
     #MainMenu,footer{{visibility:hidden;}}
     header{{background:transparent!important;}}
     .block-container{{padding-top:0!important;max-width:1100px;}}
     [data-testid="stSidebar"]{{background:{WHITE};}}
     </style>""", unsafe_allow_html=True)
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 2. DATA HELPERS
 # ═══════════════════════════════════════════════════
@@ -163,9 +165,13 @@ def yen(v):
     except ValueError:
         try: return int(float(s))
         except ValueError: return 0
- 
+
 def fmt(v): return f"¥{v:,.0f}"
- 
+
+def html(s):
+    """Strip newlines/indents so Streamlit's markdown doesn't treat it as a code block."""
+    return re.sub(r"\s*\n\s*", "", s)
+
 @st.cache_data
 def img_b64(path):
     """画像ファイルを base64 データ URI に変換。存在しなければ None。"""
@@ -189,28 +195,28 @@ def img_b64(path):
     with open(p, "rb") as f:
         data = base64.b64encode(f.read()).decode()
     return f"data:{mime};base64,{data}"
- 
+
 def extract_ssid(url):
     m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
     return m.group(1) if m else ""
- 
+
 def csv_url(ssid, gid): return f"https://docs.google.com/spreadsheets/d/{ssid}/export?format=csv&gid={gid}"
- 
+
 def fetch_sheet(ssid, gid):
     r = requests.get(csv_url(ssid, gid), timeout=15)
     r.raise_for_status()
     return pd.read_csv(io.StringIO(r.content.decode("utf-8-sig")), header=None, dtype=str)
- 
+
 def load_local():
     return pd.read_csv("data.csv", header=None, dtype=str, encoding="utf-8-sig")
- 
+
 def rv(raw, label):
     """Find row by first column label, return 12 monthly values."""
     for i in range(raw.shape[0]):
         if str(raw.iloc[i,0]).strip() == label:
             return [yen(raw.iloc[i,j]) for j in range(1, min(13, raw.shape[1]))]
     return [0]*12
- 
+
 def parse_common(raw):
     return {
         "budget":     rv(raw, "売上予算"),
@@ -223,13 +229,13 @@ def parse_common(raw):
         "sg_a":       rv(raw, "販管費"),
         "profit":     rv(raw, "営業利益"),
     }
- 
+
 def parse_akibro_cats(raw):
     cats = ["物販（会場内チェキ）","物販（会場内グッズ）","ガイドツアー",
             "グッズ（MD）","グッズ通販（MD）","チケット（前売り）",
             "チケット（当日）","チケット（海外）","外部"]
     return {c: rv(raw, c) for c in cats}
- 
+
 def parse_virtual_cats(raw):
     cats = {}
     coin_idx = 0
@@ -264,20 +270,20 @@ def parse_virtual_cats(raw):
         elif "当月末" in cell and "チケット" in cell:
             unused_end["Stripe"] = vals
     return cats, prepaid, unused_end
- 
+
 def parse_nicolive_cats(raw):
     cats = ["会員費","ギフト収入","ファンミ参加費(Bitfan)","ファンミチェキ券"]
     return {c: rv(raw, c) for c in cats}
- 
+
 def parse_atlive_cats(raw):
     cats = ["チケット(前売り)","チケット(当日)","チェキ券"]
     return {c: rv(raw, c) for c in cats}
- 
+
 def parse_wedding_cats(raw):
     cats = ["出張お給仕","フォト"]
     return {c: rv(raw, c) for c in cats}
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 3. CHART BUILDERS
 # ═══════════════════════════════════════════════════
@@ -285,17 +291,17 @@ PL = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
           font=dict(family=FONT, size=12, color=CHARCOAL),
           margin=dict(l=50,r=30,t=40,b=40),
           hoverlabel=dict(bgcolor=WHITE, font_size=12, bordercolor=PINK))
- 
+
 def _hex_to_rgb(h):
     return int(h[1:3],16), int(h[3:5],16), int(h[5:7],16)
- 
+
 def _hl_colors(base, n, hi=None, fade=.55):
     """Color list; non-highlighted bars dimmed at the given opacity."""
     if hi is None:
         return [base]*n
     r,g,b = _hex_to_rgb(base)
     return [base if i==hi else f"rgba({r},{g},{b},{fade})" for i in range(n)]
- 
+
 def chart_bar_line(data, hi=None):
     """Budget(line) vs Actual(bar) vs LastYear(bar)."""
     n = len(MONTHS)
@@ -313,7 +319,7 @@ def chart_bar_line(data, hi=None):
         yaxis=dict(gridcolor="rgba(0,0,0,.06)",zeroline=False,tickformat=",",tickprefix="¥"),
         xaxis=dict(showgrid=False))
     return fig
- 
+
 def chart_sales_cost(data, hi=None):
     """売上 vs 原価 のグループ棒グラフ (with profit line)."""
     n = len(MONTHS)
@@ -333,7 +339,7 @@ def chart_sales_cost(data, hi=None):
                    tickformat=",",tickprefix="¥"),
         xaxis=dict(showgrid=False))
     return fig
- 
+
 def chart_donut(categories, mi=None):
     """Donut chart - either total or specific month."""
     labels = list(categories.keys())
@@ -351,14 +357,14 @@ def chart_donut(categories, mi=None):
         legend=dict(orientation="v",yanchor="middle",y=.5,xanchor="left",x=1.02,font=dict(size=10)),
         height=360)
     return fig
- 
+
 def chart_achievement_monthly(data, hi=None):
     """月別 予算達成率 棒グラフ - 目立つようにメインエリアに置く用."""
     n = len(MONTHS)
     budget = data["budget"]; actual = data["sales_inc"]
     rates = [(actual[i]/budget[i]*100 if budget[i] else 0) for i in range(n)]
     has_budget = [budget[i] > 0 for i in range(n)]
- 
+
     colors = []
     for i in range(n):
         if not has_budget[i]:
@@ -377,7 +383,7 @@ def chart_achievement_monthly(data, hi=None):
                 colors.append(f"rgba({r},{g},{b},.55)")
             else:
                 colors.append(base)
- 
+
     fig = go.Figure(go.Bar(x=MONTHS, y=rates, marker_color=colors,
                            marker_line_width=0,
                            text=[f"{r:.0f}%" if has_budget[i] else "—"
@@ -392,7 +398,7 @@ def chart_achievement_monthly(data, hi=None):
                    range=[0, max(max(rates)*1.25, 130)]),
         xaxis=dict(showgrid=False))
     return fig
- 
+
 def chart_profit(data, hi=None):
     """月別 営業利益 棒グラフ."""
     p = data["profit"]
@@ -414,7 +420,7 @@ def chart_profit(data, hi=None):
                    zerolinecolor="rgba(0,0,0,.12)",tickformat=",",tickprefix="¥"),
         xaxis=dict(showgrid=False))
     return fig
- 
+
 def chart_stacked_bar(categories, hi=None):
     """Stacked bar with per-month highlighting via opacity."""
     n_months = len(MONTHS)
@@ -433,7 +439,7 @@ def chart_stacked_bar(categories, hi=None):
         yaxis=dict(gridcolor="rgba(0,0,0,.06)",zeroline=False,tickformat=",",tickprefix="¥"),
         xaxis=dict(showgrid=False))
     return fig
- 
+
 def chart_profit_with_margin(data, hi=None):
     """営業利益バー + 利益率ライン."""
     p = data["profit"]
@@ -462,7 +468,7 @@ def chart_profit_with_margin(data, hi=None):
         xaxis=dict(showgrid=False),
         legend=dict(orientation="h",yanchor="bottom",y=1.04,xanchor="center",x=.5,font=dict(size=11)))
     return fig
- 
+
 def chart_cumulative(data):
     s = data["sales_inc"]
     cum = []; total = 0
@@ -477,8 +483,8 @@ def chart_cumulative(data):
         yaxis=dict(gridcolor="rgba(0,0,0,.06)",zeroline=False,tickformat=",",tickprefix="¥"),
         xaxis=dict(showgrid=False))
     return fig
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 4. UI COMPONENTS
 # ═══════════════════════════════════════════════════
@@ -488,12 +494,12 @@ def render_header(key):
     logo_html = ""
     if logo:
         logo_html = f'<div class="header-logo-wrap"><img src="{logo}" class="header-logo" alt=""></div>'
-    st.markdown(f"""<div class="dash-header">
+    st.markdown(html(f"""<div class="dash-header">
         <div class="header-accent"></div>
         {logo_html}
         <div><h1>{p["label"]}</h1><p>{p["subtitle"]} — 2026年度 予実管理</p></div>
-    </div>""", unsafe_allow_html=True)
- 
+    </div>"""), unsafe_allow_html=True)
+
 def page_month_selector(default_index=0, key_suffix=""):
     """ページ内の月セレクター。0=全期間、1〜12=各月のインデックス+1。Returns mi (None or 0-11)."""
     opts = ["全期間"] + MONTHS
@@ -506,36 +512,36 @@ def page_month_selector(default_index=0, key_suffix=""):
         sel = st.selectbox("表示月", opts, index=default_index,
                           label_visibility="collapsed", key=f"month_sel_{key_suffix}")
     return None if sel == "全期間" else MONTHS.index(sel)
- 
+
 def kpi(label, value, sub="", color_class=""):
     sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else ""
     cls = f' kpi-{color_class}' if color_class else ""
-    st.markdown(f"""<div class="kpi-card">
+    st.markdown(html(f"""<div class="kpi-card">
         <div class="kpi-label">{label}</div>
         <div class="kpi-value{cls}">{value}</div>{sub_html}
-    </div>""", unsafe_allow_html=True)
- 
+    </div>"""), unsafe_allow_html=True)
+
 def kpi_progress(label, value, pct, sub=""):
     fill_cls = "prog-fill prog-fill-over" if pct > 100 else "prog-fill"
     sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else ""
-    st.markdown(f"""<div class="kpi-card">
+    st.markdown(html(f"""<div class="kpi-card">
         <div class="kpi-label">{label}</div>
         <div class="kpi-value kpi-accent">{value}</div>
         <div class="prog-track"><div class="{fill_cls}" style="width:{min(pct,100):.1f}%"></div></div>
         {sub_html}
-    </div>""", unsafe_allow_html=True)
- 
+    </div>"""), unsafe_allow_html=True)
+
 def section(title):
     st.markdown(f'<div class="section-card"><div class="section-title">{title}</div>',
                 unsafe_allow_html=True)
- 
+
 def section_end():
     st.markdown('</div>', unsafe_allow_html=True)
- 
+
 def profit_class(v):
     return "profit-pos" if v >= 0 else "profit-neg"
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 5. KPI ROW BUILDERS (project-specific)
 # ═══════════════════════════════════════════════════
@@ -549,11 +555,11 @@ def kpi_row_with_budget(data, mi, has_yoy=True):
         s,c,b,ly,pr = (sum(data["sales_inc"]), sum(data["cost_inc"]),
                        sum(data["budget"]), sum(data["last_year"]), sum(data["profit"]))
         sfx = "（通期）"
- 
+
     cost_rate = (c/s*100) if s else 0
     margin    = (pr/s*100) if s else 0
     ach       = (s/b*100) if b else 0
- 
+
     cols = st.columns(4, gap="medium")
     with cols[0]: kpi(f"売上実績{sfx}", fmt(s), f"予算 {fmt(b)}" if b else "予算未設定")
     with cols[1]: kpi(f"原価{sfx}", fmt(c), f"原価率 {cost_rate:.1f}%", color_class="cost")
@@ -567,7 +573,7 @@ def kpi_row_with_budget(data, mi, has_yoy=True):
         else:
             yoy_sub = f"前年 {fmt(ly)}" if ly else ""
             kpi(f"前年比{sfx}", f"{(s/ly*100):.1f}%" if ly else "—", yoy_sub)
- 
+
 def kpi_row_no_budget(data, mi, extra_label=None, extra_value=None, extra_sub=""):
     """予算なしプロジェクト用 (VIRTUAL, NICOLIVE, WEDDING) — 売上/原価/営業利益/その他."""
     if mi is not None:
@@ -576,10 +582,10 @@ def kpi_row_no_budget(data, mi, extra_label=None, extra_value=None, extra_sub=""
     else:
         s,c,pr = sum(data["sales_inc"]), sum(data["cost_inc"]), sum(data["profit"])
         sfx = "（通期）"
- 
+
     cost_rate = (c/s*100) if s else 0
     margin    = (pr/s*100) if s else 0
- 
+
     cols = st.columns(4, gap="medium")
     with cols[0]: kpi(f"売上実績{sfx}", fmt(s))
     with cols[1]: kpi(f"原価{sfx}", fmt(c), f"原価率 {cost_rate:.1f}%", color_class="cost")
@@ -591,16 +597,16 @@ def kpi_row_no_budget(data, mi, extra_label=None, extra_value=None, extra_sub=""
             kpi(extra_label, extra_value, extra_sub)
         else:
             kpi("—", "—")
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 6. PAGE RENDERERS
 # ═══════════════════════════════════════════════════
- 
+
 # ── MAIN PAGE ──
 def render_main_page(ssid):
     render_header("MAIN")
- 
+
     # Month selector — defaults to current fiscal month
     mi_default = fiscal_month_index() + 1  # +1 because index 0 is "全期間"
     mi = page_month_selector(default_index=mi_default, key_suffix="main")
@@ -608,7 +614,7 @@ def render_main_page(ssid):
         period_label = "通期"
     else:
         period_label = MONTHS[mi]
- 
+
     # Load all projects
     all_data = {}
     for key, proj in PROJECTS.items():
@@ -620,11 +626,11 @@ def render_main_page(ssid):
             all_data[key] = parse_common(raw)
         except Exception:
             pass
- 
+
     if not all_data:
         st.info("スプレッドシートの URL と各シートの gid を設定してください。")
         return
- 
+
     # Per-project summary cards
     total_sales = total_cost = total_profit = 0
     for key, d in all_data.items():
@@ -637,13 +643,13 @@ def render_main_page(ssid):
         ach = (s/b*100) if b else 0
         margin = (pr/s*100) if s else 0
         pr_color = PROFIT_POS if pr >= 0 else PROFIT_NEG
- 
+
         ach_html = (f'<div><div class="proj-metric-label">予算達成率</div>'
                     f'<div class="proj-metric-value">{ach:.1f}%</div></div>'
                     if b else
                     f'<div><div class="proj-metric-label">予算</div>'
                     f'<div class="proj-metric-value" style="color:#bbb;">—</div></div>')
- 
+
         # Header with logo or badge
         logo_b64 = img_b64(p.get("logo"))
         if logo_b64:
@@ -653,8 +659,8 @@ def render_main_page(ssid):
             initial = p["label"][:1]
             head_inner = (f'<div class="proj-badge">{initial}</div>'
                           f'<div class="proj-card-title">{p["label"]}</div>')
- 
-        st.markdown(f"""<div class="proj-summary-card">
+
+        st.markdown(html(f"""<div class="proj-summary-card">
             <div class="proj-card-header">{head_inner}</div>
             <div class="proj-row">
                 <div>
@@ -675,12 +681,12 @@ def render_main_page(ssid):
                 </div>
                 {ach_html}
             </div>
-        </div>""", unsafe_allow_html=True)
- 
+        </div>"""), unsafe_allow_html=True)
+
     # Total
     pr_color = PROFIT_POS if total_profit >= 0 else PROFIT_NEG
     total_margin = (total_profit/total_sales*100) if total_sales else 0
-    st.markdown(f"""<div class="proj-summary-card" style="background:linear-gradient(135deg,{DARK},#2d2d4e);margin-top:.5rem;">
+    st.markdown(html(f"""<div class="proj-summary-card" style="background:linear-gradient(135deg,{DARK},#2d2d4e);margin-top:.5rem;">
         <div class="proj-card-header" style="border-color:{PINK};">
             <div class="proj-card-title" style="color:{WHITE};font-size:1rem;">全プロジェクト合計（{period_label}）</div>
         </div>
@@ -703,8 +709,8 @@ def render_main_page(ssid):
             </div>
             <div></div>
         </div>
-    </div>""", unsafe_allow_html=True)
- 
+    </div>"""), unsafe_allow_html=True)
+
     # Comparison chart — sales vs cost vs profit by project
     section(f"プロジェクト別 売上 / 原価 / 営業利益（{period_label}）")
     names = [PROJECTS[k]["label"] for k in all_data]
@@ -728,8 +734,8 @@ def render_main_page(ssid):
         xaxis=dict(showgrid=False))
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
- 
+
+
 # ── PROJECT PAGE COMMON: summary table ──
 def render_summary_table(data, with_budget=True, with_yoy=True):
     section("月別サマリー")
@@ -757,20 +763,20 @@ def render_summary_table(data, with_budget=True, with_yoy=True):
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     section_end()
- 
- 
+
+
 # ── AKIBA BROADWAY ──
 def render_akibro(data, cats):
     render_header("AKIBABROADWAY")
     mi = page_month_selector(key_suffix="akibro")
     kpi_row_with_budget(data, mi, has_yoy=True)
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
- 
+
     section("月別 予算達成率")
     st.plotly_chart(chart_achievement_monthly(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     left, right = st.columns([3,2], gap="medium")
     with left:
         section("月別 予算 vs 実績 vs 前年")
@@ -782,20 +788,20 @@ def render_akibro(data, cats):
         st.plotly_chart(chart_donut(cats, mi),
                         use_container_width=True, config={"displayModeBar":False})
         section_end()
- 
+
     section("売上 vs 原価 vs 営業利益")
     st.plotly_chart(chart_sales_cost(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     render_summary_table(data, with_budget=True, with_yoy=True)
- 
- 
+
+
 # ── VIRTUAL ──
 def render_virtual(data, cats, prepaid, unused_end):
     render_header("VIRTUAL")
     mi = page_month_selector(key_suffix="virtual")
- 
+
     if mi is not None:
         pp_total = sum(v[mi] for v in prepaid.values()) if prepaid else 0
         ue_total = sum(v[mi] for v in unused_end.values()) if unused_end else 0
@@ -813,7 +819,7 @@ def render_virtual(data, cats, prepaid, unused_end):
         extra_value=fmt(pp_total),
         extra_sub=f"未使用残高 {fmt(ue_total)}")
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
- 
+
     left, right = st.columns([3,2], gap="medium")
     with left:
         section("プラットフォーム別 月次売上推移")
@@ -825,25 +831,25 @@ def render_virtual(data, cats, prepaid, unused_end):
         st.plotly_chart(chart_donut(cats, mi),
                         use_container_width=True, config={"displayModeBar":False})
         section_end()
- 
+
     section("売上 vs 原価 vs 営業利益")
     st.plotly_chart(chart_sales_cost(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     section("営業利益 / 利益率推移")
     st.plotly_chart(chart_profit_with_margin(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     render_summary_table(data, with_budget=False, with_yoy=True)
- 
- 
+
+
 # ── NICOLIVE ──
 def render_nicolive(data, cats):
     render_header("NICOLIVE")
     mi = page_month_selector(key_suffix="nicolive")
- 
+
     if mi is not None:
         membership = cats.get("会員費",[0]*12)[mi]
         s_m = data["sales_inc"][mi]
@@ -851,13 +857,13 @@ def render_nicolive(data, cats):
         membership = sum(cats.get("会員費",[0]*12))
         s_m = sum(data["sales_inc"])
     stock_ratio = (membership/s_m*100) if s_m else 0
- 
+
     kpi_row_no_budget(data, mi,
         extra_label="会員費（ストック）",
         extra_value=fmt(membership),
         extra_sub=f"ストック比率 {stock_ratio:.1f}%")
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
- 
+
     left, right = st.columns([3,2], gap="medium")
     with left:
         section("カテゴリ別 月次売上推移")
@@ -869,32 +875,32 @@ def render_nicolive(data, cats):
         st.plotly_chart(chart_donut(cats, mi),
                         use_container_width=True, config={"displayModeBar":False})
         section_end()
- 
+
     section("売上 vs 原価 vs 営業利益")
     st.plotly_chart(chart_sales_cost(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     section("営業利益 / 利益率推移")
     st.plotly_chart(chart_profit_with_margin(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     render_summary_table(data, with_budget=False, with_yoy=False)
- 
- 
+
+
 # ── AT LIVE ──
 def render_atlive(data, cats):
     render_header("AT_LIVE")
     mi = page_month_selector(key_suffix="atlive")
     kpi_row_with_budget(data, mi, has_yoy=True)
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
- 
+
     section("月別 予算達成率（開催月のみハイライト）")
     st.plotly_chart(chart_achievement_monthly(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     left, right = st.columns([3,2], gap="medium")
     with left:
         section("月別 予算 vs 実績 vs 前年")
@@ -906,26 +912,26 @@ def render_atlive(data, cats):
         st.plotly_chart(chart_donut(cats, mi),
                         use_container_width=True, config={"displayModeBar":False})
         section_end()
- 
+
     section("売上 vs 原価 vs 営業利益")
     st.plotly_chart(chart_sales_cost(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     render_summary_table(data, with_budget=True, with_yoy=True)
- 
- 
+
+
 # ── WEDDING ──
 def render_wedding(data, cats):
     render_header("WEDDING")
     mi = page_month_selector(key_suffix="wedding")
- 
+
     cum = sum(data["sales_inc"])
     kpi_row_no_budget(data, mi,
         extra_label="累計売上（通期）", extra_value=fmt(cum),
         extra_sub=f"累計利益 {fmt(sum(data['profit']))}")
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
- 
+
     left, right = st.columns([3,2], gap="medium")
     with left:
         section("月別 売上推移")
@@ -937,20 +943,20 @@ def render_wedding(data, cats):
         st.plotly_chart(chart_donut(cats, mi),
                         use_container_width=True, config={"displayModeBar":False})
         section_end()
- 
+
     section("売上 vs 原価 vs 営業利益")
     st.plotly_chart(chart_sales_cost(data, mi),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     section("累計売上推移")
     st.plotly_chart(chart_cumulative(data),
                     use_container_width=True, config={"displayModeBar":False})
     section_end()
- 
+
     render_summary_table(data, with_budget=False, with_yoy=True)
- 
- 
+
+
 # ── PHOTOSHOT (placeholder) ──
 def render_photoshot(data):
     render_header("PHOTOSHOT")
@@ -958,22 +964,22 @@ def render_photoshot(data):
     st.info("撮影会の売上構成データが入力され次第、ダッシュボードを更新します。")
     kpi_row_no_budget(data, mi)
     render_summary_table(data, with_budget=False, with_yoy=True)
- 
- 
+
+
 # ═══════════════════════════════════════════════════
 # 7. MAIN
 # ═══════════════════════════════════════════════════
 def main():
     st.set_page_config(page_title="予実管理 2026", layout="wide", initial_sidebar_state="expanded")
     inject_css()
- 
+
     # ── Sidebar ──
     with st.sidebar:
         st.markdown(f'<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;">'
                     f'<div style="width:3px;height:24px;background:{PINK};border-radius:2px;"></div>'
                     f'<span style="font-size:.9rem;font-weight:600;color:{CHARCOAL};">予実管理 2026</span></div>',
                     unsafe_allow_html=True)
- 
+
         st.markdown('<p style="font-size:.65rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#999;margin-bottom:.15rem;">プロジェクト選択</p>',
                     unsafe_allow_html=True)
         keys = list(PROJECTS.keys())
@@ -981,22 +987,28 @@ def main():
         sel = st.selectbox("プロジェクト", keys, format_func=lambda k: labels[k],
                           label_visibility="collapsed")
         st.markdown("---")
- 
-        st.markdown('<p style="font-size:.65rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#999;margin-bottom:.15rem;">スプレッドシート URL</p>',
-                    unsafe_allow_html=True)
-        sheet_url = st.text_input("URL", value=st.session_state.get("sheet_url",""),
-            placeholder="https://docs.google.com/spreadsheets/d/xxxxx/edit",
-            label_visibility="collapsed")
-        if sheet_url: st.session_state["sheet_url"] = sheet_url
-        st.markdown('<p style="font-size:.65rem;color:#aaa;line-height:1.5;margin-top:.15rem;">共有→「リンクを知っている全員：閲覧者」</p>',
-                    unsafe_allow_html=True)
-        st.markdown("---")
- 
+
         auto_sec = st.selectbox("自動更新", [0,10,30,60],
                                 format_func=lambda x: "手動" if x==0 else f"{x}秒")
         st.markdown("---")
-        with st.expander("各シートの gid"):
-            st.markdown('<p style="font-size:.65rem;color:#aaa;line-height:1.4;">各シート URL 末尾の「#gid=数字」の数字</p>',
+
+        # ── 高度な設定（普段は折りたたみ） ──
+        with st.expander("高度な設定（URL / gid）"):
+            st.markdown('<p style="font-size:.65rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#999;margin-bottom:.15rem;">スプレッドシート URL</p>',
+                        unsafe_allow_html=True)
+            sheet_url_input = st.text_input(
+                "URL",
+                value=st.session_state.get("sheet_url_override", ""),
+                placeholder="既定のURLを使う場合は空欄のままでOK",
+                label_visibility="collapsed",
+                help=f"既定: {DEFAULT_SHEET_URL[:60]}...",
+            )
+            if sheet_url_input:
+                st.session_state["sheet_url_override"] = sheet_url_input
+            elif "sheet_url_override" in st.session_state and not sheet_url_input:
+                st.session_state.pop("sheet_url_override", None)
+
+            st.markdown('<p style="font-size:.65rem;color:#aaa;line-height:1.4;margin-top:.5rem;">各シート URL 末尾の「#gid=数字」の数字</p>',
                         unsafe_allow_html=True)
             for k,p in PROJECTS.items():
                 if k == "MAIN": continue
@@ -1004,25 +1016,28 @@ def main():
                                   value=st.session_state.get(f"gid_{k}", p["gid"]),
                                   placeholder="例: 0", key=f"gid_input_{k}")
                 st.session_state[f"gid_{k}"] = g
- 
+
+        # 実際に使う URL は、入力値があればそれ、なければデフォルト
+        sheet_url = st.session_state.get("sheet_url_override", "") or DEFAULT_SHEET_URL
+
     if auto_sec > 0:
         st.markdown(f'<meta http-equiv="refresh" content="{auto_sec}">',
                     unsafe_allow_html=True)
- 
+
     # ── Top toolbar (reload) ──
     col_r, col_s, _ = st.columns([1,3,2])
     with col_r:
         if st.button("データを再読み込み"): st.rerun()
- 
+
     ssid = extract_ssid(sheet_url.strip()) if sheet_url.strip() else ""
- 
+
     # ── Route ──
     if sel == "MAIN":
         with col_s:
             if ssid: st.caption("Google Sheets から取得")
         render_main_page(ssid)
         return
- 
+
     # Individual project
     gid = st.session_state.get(f"gid_{sel}", PROJECTS[sel]["gid"])
     raw = None; err = None
@@ -1031,7 +1046,7 @@ def main():
         except Exception as e: err = str(e)
     elif ssid and not gid:
         err = f"「{PROJECTS[sel]['label']}」の gid が未設定です。"
- 
+
     if raw is None:
         try:
             raw = load_local()
@@ -1040,13 +1055,13 @@ def main():
             if err: st.error(err)
             else: st.error("データがありません。URL と gid を設定してください。")
             st.stop()
- 
+
     with col_s:
         if ssid and gid and err is None:
             st.caption(f"Google Sheets (gid={gid}) から取得済み")
- 
+
     data = parse_common(raw)
- 
+
     if sel == "AKIBABROADWAY":
         render_akibro(data, parse_akibro_cats(raw))
     elif sel == "VIRTUAL":
@@ -1060,11 +1075,10 @@ def main():
         render_wedding(data, parse_wedding_cats(raw))
     elif sel == "PHOTOSHOT":
         render_photoshot(data)
- 
+
     st.markdown(f'<div style="text-align:center;padding:1.5rem 0 .5rem;color:#bbb;font-size:.65rem;letter-spacing:.08em;">2026 予実管理ダッシュボード — Prototype</div>',
                 unsafe_allow_html=True)
- 
- 
+
+
 if __name__ == "__main__":
     main()
- 
