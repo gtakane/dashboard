@@ -490,19 +490,56 @@ def chart_cumulative(data):
 # 4. UI COMPONENTS
 # ═══════════════════════════════════════════════════
 def render_header(key):
+    """シンプルで確実に表示されるヘッダー（白背景・ピンクアクセント）"""
     p = PROJECTS[key]
-    logo = img_b64(p.get("logo"))
-    logo_html = ""
-    if logo:
-        logo_html = f'<div class="header-logo-wrap"><img src="{logo}" class="header-logo" alt=""></div>'
-    st.markdown(html(f"""<div class="dash-header">
-        <div class="header-accent"></div>
-        {logo_html}
-        <div style="flex:1;">
-            <h1 style="color:#ffffff !important;font-size:1.4rem;font-weight:700;margin:0;line-height:1.2;">{p["label"]}</h1>
-            <p style="color:#e5e7eb !important;font-size:.85rem;font-weight:400;margin:.25rem 0 0;line-height:1.3;">{p["subtitle"]} — 2026年度 予実管理</p>
-        </div>
-    </div>"""), unsafe_allow_html=True)
+
+    # ロゴパスを解決
+    logo_path = None
+    if p.get("logo"):
+        base_dir = Path(__file__).parent
+        candidate = base_dir / p["logo"]
+        if candidate.exists():
+            logo_path = str(candidate)
+
+    # 上部にピンクのアクセントライン
+    st.markdown(
+        f'<div style="height:4px;background:{PINK};margin:-1rem -1rem 0 -1rem;'
+        f'border-radius:0;"></div>',
+        unsafe_allow_html=True,
+    )
+
+    # ヘッダー本体: 白背景にロゴ + タイトル
+    st.markdown(
+        f'<div style="background:#ffffff;padding:1.2rem 1.5rem;'
+        f'margin:0 -1rem 1.2rem -1rem;border-bottom:1px solid #e5e7eb;'
+        f'box-shadow:0 2px 4px rgba(0,0,0,.04);">',
+        unsafe_allow_html=True,
+    )
+
+    if logo_path:
+        c1, c2 = st.columns([1, 5], gap="medium")
+        with c1:
+            st.image(logo_path, width=130)
+        with c2:
+            st.markdown(
+                f'<div style="padding-top:.4rem;">'
+                f'<div style="color:#1f2937;font-size:1.45rem;font-weight:700;'
+                f'line-height:1.2;letter-spacing:.02em;">{p["label"]}</div>'
+                f'<div style="color:#6b7280;font-size:.9rem;font-weight:400;'
+                f'margin-top:.35rem;line-height:1.3;">{p["subtitle"]} — 2026年度 予実管理</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown(
+            f'<div style="color:#1f2937;font-size:1.45rem;font-weight:700;'
+            f'line-height:1.2;letter-spacing:.02em;">{p["label"]}</div>'
+            f'<div style="color:#6b7280;font-size:.9rem;font-weight:400;'
+            f'margin-top:.35rem;line-height:1.3;">{p["subtitle"]} — 2026年度 予実管理</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def page_month_selector(default_index=0, key_suffix=""):
     """ページ内の月セレクター。0=全期間、1〜12=各月のインデックス+1。Returns mi (None or 0-11)."""
