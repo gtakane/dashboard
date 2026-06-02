@@ -699,11 +699,12 @@ def render_main_page(ssid):
             if candidate.exists():
                 logo_path = str(candidate)
 
-        # カード開始 + ピンク区切り線
-        st.markdown(html(f"""<div class="proj-summary-card">
-            <div style="border-bottom:2px solid {PINK};display:inline-block;
-                padding-bottom:.3rem;margin-bottom:.6rem;"></div>
-        </div>"""), unsafe_allow_html=True)
+        # プロジェクトセクション開始（少し上下に余白）
+        st.markdown(
+            f'<div style="margin-top:1rem;padding-top:.4rem;'
+            f'border-top:1px solid #e5e7eb;"></div>',
+            unsafe_allow_html=True,
+        )
 
         # 1行構成: ロゴ列 + タイトル列（または頭文字バッジ）
         if logo_path:
