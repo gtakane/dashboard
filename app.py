@@ -1,22 +1,24 @@
+
 """
 2026年度 EC部 予実管理ダッシュボード — マルチプロジェクト対応
 """
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import io, re, requests, datetime
+import io, re, requests, datetime, base64
+from pathlib import Path
  
 # ═══════════════════════════════════════════════════
 # 0. CONFIG
 # ═══════════════════════════════════════════════════
 PROJECTS = {
-    "MAIN":          {"label": "メインダッシュボード", "subtitle": "全プロジェクト概況",      "gid": ""},
-    "AKIBABROADWAY": {"label": "AKIBA BROADWAY",      "subtitle": "お屋敷公演",              "gid": "0"},
-    "VIRTUAL":       {"label": "バーチャルあっとほぉーむカフェ", "subtitle": "バーチャル配信", "gid": "1173568321"},
-    "NICOLIVE":      {"label": "ニコ生",               "subtitle": "ニコニコ生放送",          "gid": "1834964074"},
-    "AT_LIVE":       {"label": "あっとライブ",          "subtitle": "ライブイベント",          "gid": "1558766351"},
-    "WEDDING":       {"label": "ウェディング",          "subtitle": "ウェディング事業",        "gid": "1014571293"},
-    "PHOTOSHOT":     {"label": "撮影会",               "subtitle": "撮影会イベント",          "gid": "970613346"},
+    "MAIN":          {"label": "メインダッシュボード", "subtitle": "全プロジェクト概況",      "gid": "",          "logo": None},
+    "AKIBABROADWAY": {"label": "AKIBA BROADWAY",      "subtitle": "お屋敷公演",              "gid": "0",         "logo": "assets/akibro.jpg"},
+    "VIRTUAL":       {"label": "バーチャルあっとほぉーむカフェ", "subtitle": "バーチャル配信", "gid": "1173568321","logo": "assets/virtual.png"},
+    "NICOLIVE":      {"label": "ニコ生",               "subtitle": "ニコニコ生放送",          "gid": "1834964074","logo": "assets/nicolive.png"},
+    "AT_LIVE":       {"label": "あっとライブ",          "subtitle": "ライブイベント",          "gid": "1558766351","logo": None},
+    "WEDDING":       {"label": "ウェディング",          "subtitle": "ウェディング事業",        "gid": "1014571293","logo": None},
+    "PHOTOSHOT":     {"label": "撮影会",               "subtitle": "撮影会イベント",          "gid": "970613346", "logo": None},
 }
  
 # ── Color palette (refreshed for better visibility) ──
@@ -65,11 +67,31 @@ def inject_css():
  
     /* ── Header ── */
     .dash-header{{background:linear-gradient(135deg,{DARK},#2d2d4e);
-        padding:1.2rem 2rem 1rem;border-radius:0 0 1rem 1rem;
+        padding:1.1rem 1.8rem 1rem;border-radius:0 0 1rem 1rem;
         margin:-1rem -1rem 1.2rem -1rem;display:flex;align-items:center;gap:1rem;}}
-    .header-accent{{width:3px;height:32px;background:{PINK};border-radius:2px;}}
-    .dash-header h1{{color:{WHITE};font-size:1.2rem;font-weight:600;margin:0;}}
-    .dash-header p{{color:rgba(255,255,255,.5);font-size:.72rem;font-weight:300;margin:0;}}
+    .header-accent{{width:3px;height:42px;background:{PINK};border-radius:2px;flex-shrink:0;}}
+    .dash-header h1{{color:{WHITE};font-size:1.25rem;font-weight:600;margin:0;letter-spacing:.02em;}}
+    .dash-header p{{color:rgba(255,255,255,.85);font-size:.78rem;font-weight:400;margin:.1rem 0 0;letter-spacing:.03em;}}
+ 
+    /* ── Header logo wrapper ── */
+    .header-logo-wrap{{background:{WHITE};border-radius:8px;
+        padding:6px 10px;display:flex;align-items:center;justify-content:center;
+        box-shadow:0 2px 6px rgba(0,0,0,.18);flex-shrink:0;
+        height:52px;min-width:60px;max-width:200px;}}
+    .header-logo{{height:38px;max-width:180px;object-fit:contain;display:block;}}
+ 
+    /* ── Project card logo (main dashboard) ── */
+    .proj-card-header{{display:flex;align-items:center;gap:.8rem;
+        margin:0 0 .8rem;padding-bottom:.3rem;border-bottom:2px solid {PINK};
+        display:inline-flex;}}
+    .proj-logo-wrap{{background:{LGRAY};border-radius:6px;
+        padding:4px 8px;display:flex;align-items:center;justify-content:center;
+        height:40px;min-width:48px;max-width:140px;}}
+    .proj-logo{{height:30px;max-width:124px;object-fit:contain;display:block;}}
+    .proj-badge{{width:36px;height:36px;border-radius:50%;background:{PINK};
+        color:{WHITE};display:flex;align-items:center;justify-content:center;
+        font-weight:700;font-size:1rem;flex-shrink:0;}}
+    .proj-card-title{{font-size:.95rem;font-weight:600;color:{CHARCOAL};margin:0;}}
  
     /* ── Month selector bar ── */
     .month-bar{{background:{WHITE};border-radius:.5rem;padding:.4rem .9rem;
@@ -143,6 +165,30 @@ def yen(v):
         except ValueError: return 0
  
 def fmt(v): return f"¥{v:,.0f}"
+ 
+@st.cache_data
+def img_b64(path):
+    """画像ファイルを base64 データ URI に変換。存在しなければ None。"""
+    if not path:
+        return None
+    p = Path(path)
+    if not p.exists():
+        return None
+    with open(p, "rb") as f:
+        magic = f.read(12)
+    if magic.startswith(b"\xff\xd8\xff"):
+        mime = "image/jpeg"
+    elif magic.startswith(b"\x89PNG"):
+        mime = "image/png"
+    elif magic.startswith(b"GIF8"):
+        mime = "image/gif"
+    elif magic[:4] == b"RIFF" and magic[8:12] == b"WEBP":
+        mime = "image/webp"
+    else:
+        mime = "image/png"
+    with open(p, "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+    return f"data:{mime};base64,{data}"
  
 def extract_ssid(url):
     m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
@@ -438,8 +484,13 @@ def chart_cumulative(data):
 # ═══════════════════════════════════════════════════
 def render_header(key):
     p = PROJECTS[key]
+    logo = img_b64(p.get("logo"))
+    logo_html = ""
+    if logo:
+        logo_html = f'<div class="header-logo-wrap"><img src="{logo}" class="header-logo" alt=""></div>'
     st.markdown(f"""<div class="dash-header">
         <div class="header-accent"></div>
+        {logo_html}
         <div><h1>{p["label"]}</h1><p>{p["subtitle"]} — 2026年度 予実管理</p></div>
     </div>""", unsafe_allow_html=True)
  
@@ -593,8 +644,18 @@ def render_main_page(ssid):
                     f'<div><div class="proj-metric-label">予算</div>'
                     f'<div class="proj-metric-value" style="color:#bbb;">—</div></div>')
  
+        # Header with logo or badge
+        logo_b64 = img_b64(p.get("logo"))
+        if logo_b64:
+            head_inner = (f'<div class="proj-logo-wrap"><img src="{logo_b64}" class="proj-logo" alt=""></div>'
+                          f'<div class="proj-card-title">{p["label"]}</div>')
+        else:
+            initial = p["label"][:1]
+            head_inner = (f'<div class="proj-badge">{initial}</div>'
+                          f'<div class="proj-card-title">{p["label"]}</div>')
+ 
         st.markdown(f"""<div class="proj-summary-card">
-            <h3>{p["label"]}</h3>
+            <div class="proj-card-header">{head_inner}</div>
             <div class="proj-row">
                 <div>
                     <div class="proj-metric-label">売上（税込）</div>
@@ -620,22 +681,24 @@ def render_main_page(ssid):
     pr_color = PROFIT_POS if total_profit >= 0 else PROFIT_NEG
     total_margin = (total_profit/total_sales*100) if total_sales else 0
     st.markdown(f"""<div class="proj-summary-card" style="background:linear-gradient(135deg,{DARK},#2d2d4e);margin-top:.5rem;">
-        <h3 style="color:{WHITE};border-color:{PINK};">全プロジェクト合計（{period_label}）</h3>
+        <div class="proj-card-header" style="border-color:{PINK};">
+            <div class="proj-card-title" style="color:{WHITE};font-size:1rem;">全プロジェクト合計（{period_label}）</div>
+        </div>
         <div class="proj-row">
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.5);">売上合計</div>
+                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">売上合計</div>
                 <div class="proj-metric-value" style="color:{WHITE};">{fmt(total_sales)}</div>
             </div>
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.5);">原価合計</div>
+                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">原価合計</div>
                 <div class="proj-metric-value" style="color:{COST_COLOR};">{fmt(total_cost)}</div>
             </div>
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.5);">営業利益合計</div>
+                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">営業利益合計</div>
                 <div class="proj-metric-value" style="color:{pr_color};">{fmt(total_profit)}</div>
             </div>
             <div>
-                <div class="proj-metric-label" style="color:rgba(255,255,255,.5);">利益率</div>
+                <div class="proj-metric-label" style="color:rgba(255,255,255,.78);">利益率</div>
                 <div class="proj-metric-value" style="color:{pr_color};">{total_margin:.1f}%</div>
             </div>
             <div></div>
@@ -1004,3 +1067,4 @@ def main():
  
 if __name__ == "__main__":
     main()
+ 
