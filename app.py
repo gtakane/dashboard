@@ -691,37 +691,70 @@ def render_main_page(ssid):
                     f'<div><div class="proj-metric-label">予算</div>'
                     f'<div class="proj-metric-value" style="color:#bbb;">—</div></div>')
 
-        # Header with logo or badge
-        logo_b64 = img_b64(p.get("logo"))
-        if logo_b64:
-            head_inner = (f'<div class="proj-logo-wrap"><img src="{logo_b64}" class="proj-logo" alt=""></div>'
-                          f'<div class="proj-card-title">{p["label"]}</div>')
+        # ロゴパス解決（st.image で確実に表示するため）
+        logo_path = None
+        if p.get("logo"):
+            base_dir = Path(__file__).parent
+            candidate = base_dir / p["logo"]
+            if candidate.exists():
+                logo_path = str(candidate)
+
+        # カード開始 + ピンク区切り線
+        st.markdown(html(f"""<div class="proj-summary-card">
+            <div style="border-bottom:2px solid {PINK};display:inline-block;
+                padding-bottom:.3rem;margin-bottom:.6rem;"></div>
+        </div>"""), unsafe_allow_html=True)
+
+        # 1行構成: ロゴ列 + タイトル列（または頭文字バッジ）
+        if logo_path:
+            cl, ct = st.columns([1, 6], gap="small")
+            with cl:
+                st.image(logo_path, width=110)
+            with ct:
+                st.markdown(
+                    f'<div style="padding-top:.6rem;font-size:1rem;font-weight:600;'
+                    f'color:{CHARCOAL};">{p["label"]}</div>',
+                    unsafe_allow_html=True,
+                )
         else:
             initial = p["label"][:1]
-            head_inner = (f'<div class="proj-badge">{initial}</div>'
-                          f'<div class="proj-card-title">{p["label"]}</div>')
+            cl, ct = st.columns([1, 6], gap="small")
+            with cl:
+                st.markdown(
+                    f'<div style="width:42px;height:42px;border-radius:50%;background:{PINK};'
+                    f'color:#fff;display:flex;align-items:center;justify-content:center;'
+                    f'font-weight:700;font-size:1.1rem;">{initial}</div>',
+                    unsafe_allow_html=True,
+                )
+            with ct:
+                st.markdown(
+                    f'<div style="padding-top:.6rem;font-size:1rem;font-weight:600;'
+                    f'color:{CHARCOAL};">{p["label"]}</div>',
+                    unsafe_allow_html=True,
+                )
 
-        st.markdown(html(f"""<div class="proj-summary-card">
-            <div class="proj-card-header">{head_inner}</div>
-            <div class="proj-row">
-                <div>
-                    <div class="proj-metric-label">売上（税込）</div>
-                    <div class="proj-metric-value">{fmt(s)}</div>
-                </div>
-                <div>
-                    <div class="proj-metric-label">原価（税込）</div>
-                    <div class="proj-metric-value" style="color:{COST_COLOR};">{fmt(c)}</div>
-                </div>
-                <div>
-                    <div class="proj-metric-label">営業利益</div>
-                    <div class="proj-metric-value" style="color:{pr_color};">{fmt(pr)}</div>
-                </div>
-                <div>
-                    <div class="proj-metric-label">利益率</div>
-                    <div class="proj-metric-value" style="color:{pr_color};">{margin:.1f}%</div>
-                </div>
-                {ach_html}
+        # メトリクス行（数値）
+        st.markdown(html(f"""<div class="proj-row" style="margin-top:.6rem;
+                background:#ffffff;padding:1rem 1.4rem 1.2rem;
+                border-radius:.65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);
+                border:1px solid rgba(0,0,0,.04);margin-bottom:1rem;">
+            <div>
+                <div class="proj-metric-label">売上（税込）</div>
+                <div class="proj-metric-value">{fmt(s)}</div>
             </div>
+            <div>
+                <div class="proj-metric-label">原価（税込）</div>
+                <div class="proj-metric-value" style="color:{COST_COLOR};">{fmt(c)}</div>
+            </div>
+            <div>
+                <div class="proj-metric-label">営業利益</div>
+                <div class="proj-metric-value" style="color:{pr_color};">{fmt(pr)}</div>
+            </div>
+            <div>
+                <div class="proj-metric-label">利益率</div>
+                <div class="proj-metric-value" style="color:{pr_color};">{margin:.1f}%</div>
+            </div>
+            {ach_html}
         </div>"""), unsafe_allow_html=True)
 
     # Total
